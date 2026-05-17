@@ -30,24 +30,24 @@ const logger = winston.createLogger({
  */
 function getUserLogFormat() {
   return winston.format.printf(info => {
-    const now = new Date();
+    const now = new Date()
 
     // Format the date in YYYY-MM-DD
-    const date = now.toISOString().split('T')[0];
+    const date = now.toISOString().split('T')[0]
 
     // Format the time in locale-specific time string
-    const time = now.toLocaleTimeString();
+    const time = now.toLocaleTimeString()
 
     // Get the timezone offset in the format UTC±HHMM
-    const timezoneOffsetMinutes = now.getTimezoneOffset();
-    const offsetSign = timezoneOffsetMinutes <= 0 ? '+' : '-';
-    const absoluteOffsetMinutes = Math.abs(timezoneOffsetMinutes);
-    const hours = String(Math.floor(absoluteOffsetMinutes / 60)).padStart(2, '0');
-    const minutes = String(absoluteOffsetMinutes % 60).padStart(2, '0');
-    const timezone = `UTC${offsetSign}${hours}${minutes}`;
+    const timezoneOffsetMinutes = now.getTimezoneOffset()
+    const offsetSign = timezoneOffsetMinutes <= 0 ? '+' : '-'
+    const absoluteOffsetMinutes = Math.abs(timezoneOffsetMinutes)
+    const hours = String(Math.floor(absoluteOffsetMinutes / 60)).padStart(2, '0')
+    const minutes = String(absoluteOffsetMinutes % 60).padStart(2, '0')
+    const timezone = `UTC${offsetSign}${hours}${minutes}`
 
-    return `[${info.level}] [${date} | ${time} | ${timezone}]: ${info.message}`;
-  });
+    return `[${info.level}] [${date} | ${time} | ${timezone}]: ${info.message}`
+  })
 }
 
 // Add colors to make it easier to read!
