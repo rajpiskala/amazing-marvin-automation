@@ -1,29 +1,48 @@
 import express from 'express'
 import axios from 'axios'
-import { UNASSIGNED_PARENT_ID, MarvinEndpoint } from '../lib/constants'
+import type { Response } from 'express'
+import {
+  MARVIN_NOTE_TRAILING_PADDING_REGEX,
+  NOTE_KEYWORD_SEPARATOR_REGEX,
+  UNASSIGNED_PARENT_ID,
+  MarvinEndpoint
+} from '../lib/constants'
 import { getDateFormatted, getMarvinTimezoneOffset } from '../lib/utils'
 import logger from '../lib/logger'
+import type {
+  CreateTaskPayload,
+  NoteKeywordSource,
+  RecordHabitPayload,
+  RecordHabitWebhook,
+  TaskWebhook,
+  UpdateDocPayload
+} from '../lib/marvinTypes'
 
 const router = express.Router()
-const CSV_REGEX = /\s*,\s*/
-
-// Need this as \n\n\\\ is padded for each empty line on note 
-const MARVIN_WHITESPACE_REGEX = /[\n\\]+$/g
 
 router.post('/habit-as-task', async (req, res) => {
   try {
     switch (req.query.type) {
-      case 'record-habit': await addTaskOnHabitCompletion(req.body, res); break
-      case 'mark-done': await markHabitOnTaskCompletion(req.body, res); break
-      case 'add-task': await assignGoalToTask(req.body, res); break
+      case 'record-habit':
+        await addTaskOnHabitCompletion(req.body as RecordHabitWebhook, res)
+        break
+      case 'mark-done':
+        await markHabitOnTaskCompletion(req.body as TaskWebhook, res)
+        break
+      case 'add-task':
+        await assignGoalToTask(req.body as TaskWebhook, res)
+        break
+      default:
+        logger.warn('Invalid habit-as-task type')
+        return res.status(400).json({ error: 'Invalid habit-as-task type' })
     }
   } catch (error) { 
-    console.error(error)
+    logger.error('Unhandled habit-as-task error', { error })
     res.status(500).send('An error occurred')
   }
 })
 
-async function addTaskOnHabitCompletion(recordedHabitInfo, res) {
+async function addTaskOnHabitCompletion(recordedHabitInfo: RecordHabitWebhook, res: Response): Promise<Response> {
   const { parentId, timeEstimate, title, record } = recordedHabitInfo
   if (parentId === UNASSIGNED_PARENT_ID) {
     return res.status(200).json({ message: `Skipping creating a task for habit with name: ${title}` })
@@ -33,7 +52,7 @@ async function addTaskOnHabitCompletion(recordedHabitInfo, res) {
   const recordedDate = getDateFormatted(record.time)
   const timeZoneOffset = getMarvinTimezoneOffset()
 
-  const createTaskData = {
+  const createTaskData: CreateTaskPayload = {
     done: true,
     day: recordedDate,
     timeEstimate,
@@ -45,23 +64,23 @@ async function addTaskOnHabitCompletion(recordedHabitInfo, res) {
   await axios.post(MarvinEndpoint.ADD_TASK, createTaskData)
 
   logger.info(`Successfully added done task for habit with name: ${title}`)
-  res.status(200).json({ message: `Successfully added done task for habit with name: ${title}` })
+  return res.status(200).json({ message: `Successfully added done task for habit with name: ${title}` })
 }
 
-async function markHabitOnTaskCompletion(completedTaskInfo, res) {
+async function markHabitOnTaskCompletion(completedTaskInfo: TaskWebhook, res: Response): Promise<Response> {
   const { title } = completedTaskInfo
 
   // List all the habits
-  const { data: habitInfos } = await axios.get(MarvinEndpoint.LIST_HABITS_FULL)
+  const { data: habitInfos } = await axios.get<NoteKeywordSource[]>(MarvinEndpoint.LIST_HABITS_FULL)
 
-  // Build a mapping of habit IDs and to which words to map to
-  const habitIdToPatternMatchingMap = buildHabitToPatternsMapping(habitInfos)
+  // Build a mapping of habit IDs to note keywords.
+  const habitKeywordMap = buildNoteKeywordMap(habitInfos)
 
   // TO-DO: Refactor this using a filter
-  // Go through each pattern, check if any of the titles match
-  const habitIdsToMarkComplete = []
-  for (const [habitId, patterns] of Object.entries(habitIdToPatternMatchingMap)) {
-    if (patterns.some(pattern => title.toLowerCase().includes(pattern))) habitIdsToMarkComplete.push(habitId)
+  // Go through each keyword and check if any of the titles match.
+  const habitIdsToMarkComplete: string[] = []
+  for (const [habitId, keywords] of Object.entries(habitKeywordMap)) {
+    if (keywords.some(keyword => title.toLowerCase().includes(keyword))) habitIdsToMarkComplete.push(habitId)
   }
 
   // No tasks to mark complete
@@ -76,22 +95,22 @@ async function markHabitOnTaskCompletion(completedTaskInfo, res) {
   }))
 
   logger.info(`Successfully marked habits with IDs ${habitIdsToMarkComplete.join(', ')} complete for: ${title}`)
-  res.status(200).json({ message: `Successfully added done task for habit with name: ${title}` })
+  return res.status(200).json({ message: `Successfully added done task for habit with name: ${title}` })
 }
 
-async function assignGoalToTask(completedTaskInfo, res) {
+async function assignGoalToTask(completedTaskInfo: TaskWebhook, res: Response): Promise<Response> {
   const { title, _id: taskId } = completedTaskInfo
 
   // List all the goals
-  const { data: goalInfos } = await axios.get(MarvinEndpoint.LIST_GOALS)
+  const { data: goalInfos } = await axios.get<NoteKeywordSource[]>(MarvinEndpoint.LIST_GOALS)
 
-  // Build a mapping of goal IDs and to which words to map to
-  const goalIdToPatternsMapping = buildHabitToPatternsMapping(goalInfos)
+  // Build a mapping of goal IDs to note keywords.
+  const goalKeywordMap = buildNoteKeywordMap(goalInfos)
 
   // Goal ID to attach
-  let goalIdToAttach = null
-  for (const [goalId, patterns] of Object.entries(goalIdToPatternsMapping)) {
-    if (patterns.some(pattern => title.toLowerCase().includes(pattern))) {
+  let goalIdToAttach: string | null = null
+  for (const [goalId, keywords] of Object.entries(goalKeywordMap)) {
+    if (keywords.some(keyword => title.toLowerCase().includes(keyword))) {
       goalIdToAttach = goalId
     }
   }
@@ -103,12 +122,13 @@ async function assignGoalToTask(completedTaskInfo, res) {
   }
 
   // Update task with goal
-  const updateTaskData = {
+  const now = Date.now()
+  const updateTaskData: UpdateDocPayload = {
     itemId: taskId,
     setters: [
       { key: `g_in_${goalIdToAttach}`, val: true },
-      { key: `fieldUpdates.g_in_${goalIdToAttach}`, val: Date.now() },
-      { key: 'updatedAt', val: Date.now() },
+      { key: `fieldUpdates.g_in_${goalIdToAttach}`, val: now },
+      { key: 'updatedAt', val: now },
     ]
   }
 
@@ -116,21 +136,24 @@ async function assignGoalToTask(completedTaskInfo, res) {
   await axios.post(MarvinEndpoint.UPDATE_DOC, updateTaskData)
 
   logger.info(`Assigned goal ${goalIdToAttach} to task with name: ${title}`)
-  res.status(200).json({ message: `Assigned goal ${goalIdToAttach} to habit with name: ${title}` })
+  return res.status(200).json({ message: `Assigned goal ${goalIdToAttach} to habit with name: ${title}` })
 }
 
-function buildHabitToPatternsMapping(habitInfos) {
-  const habitToPatternsMapping: Record<string, string[]> = {}
-  for (const { _id, note } of habitInfos) {
+function buildNoteKeywordMap(sources: NoteKeywordSource[]): Record<string, string[]> {
+  const noteKeywordMap: Record<string, string[]> = {}
+  for (const { _id, note } of sources) {
     if (note == null || note.length === 0) continue
 
-    const patterns = note.split(CSV_REGEX).map(s => s.toLowerCase().replace(MARVIN_WHITESPACE_REGEX, ''))
-    habitToPatternsMapping[_id] = patterns
+    const keywords = note
+      .split(NOTE_KEYWORD_SEPARATOR_REGEX)
+      .map(s => s.toLowerCase().replace(MARVIN_NOTE_TRAILING_PADDING_REGEX, '').trim())
+      .filter(keyword => keyword.length > 0)
+    noteKeywordMap[_id] = keywords
   }
-  return habitToPatternsMapping
+  return noteKeywordMap
 }
 
-function getRecordHabitData(habitId) {
+function getRecordHabitData(habitId: string): RecordHabitPayload {
   return {
     habitId,
     time: Date.now(),
@@ -140,3 +163,10 @@ function getRecordHabitData(habitId) {
 }
 
 export default router
+export {
+  addTaskOnHabitCompletion,
+  assignGoalToTask,
+  buildNoteKeywordMap,
+  getRecordHabitData,
+  markHabitOnTaskCompletion
+}
