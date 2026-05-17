@@ -1,10 +1,10 @@
-import express from 'express';
-import axios from 'axios';
-import { UNASSIGNED_PARENT_ID, MarvinEndpoint } from '../lib/constants';
-import { getDateFormatted, getMarvinTimezoneOffset } from '../lib/utils';
+import express from 'express'
+import axios from 'axios'
+import { UNASSIGNED_PARENT_ID, MarvinEndpoint } from '../lib/constants'
+import { getDateFormatted, getMarvinTimezoneOffset } from '../lib/utils'
 import logger from '../lib/logger'
 
-const router = express.Router();
+const router = express.Router()
 const CSV_REGEX = /\s*,\s*/
 
 // Need this as \n\n\\\ is padded for each empty line on note 
@@ -18,10 +18,10 @@ router.post('/habit-as-task', async (req, res) => {
       case 'add-task': await assignGoalToTask(req.body, res); break
     }
   } catch (error) { 
-    console.error(error);
-    res.status(500).send('An error occurred');
+    console.error(error)
+    res.status(500).send('An error occurred')
   }
-});
+})
 
 async function addTaskOnHabitCompletion(recordedHabitInfo, res) {
   const { parentId, timeEstimate, title, record } = recordedHabitInfo
@@ -40,19 +40,19 @@ async function addTaskOnHabitCompletion(recordedHabitInfo, res) {
     title,
     parentId,
     timeZoneOffset
-  };
+  }
 
-  await axios.post(MarvinEndpoint.ADD_TASK, createTaskData);
+  await axios.post(MarvinEndpoint.ADD_TASK, createTaskData)
 
   logger.info(`Successfully added done task for habit with name: ${title}`)
-  res.status(200).json({ message: `Successfully added done task for habit with name: ${title}` });
+  res.status(200).json({ message: `Successfully added done task for habit with name: ${title}` })
 }
 
 async function markHabitOnTaskCompletion(completedTaskInfo, res) {
   const { title } = completedTaskInfo
 
   // List all the habits
-  const { data: habitInfos } = await axios.get(MarvinEndpoint.LIST_HABITS_FULL);
+  const { data: habitInfos } = await axios.get(MarvinEndpoint.LIST_HABITS_FULL)
 
   // Build a mapping of habit IDs and to which words to map to
   const habitIdToPatternMatchingMap = buildHabitToPatternsMapping(habitInfos)
@@ -67,7 +67,7 @@ async function markHabitOnTaskCompletion(completedTaskInfo, res) {
   // No tasks to mark complete
   if (habitIdsToMarkComplete.length === 0) {
     logger.info(`No related habits to mark done for task: ${title}`)
-    return res.status(200).json({ message: `No related habits to mark done for task: ${title}` });
+    return res.status(200).json({ message: `No related habits to mark done for task: ${title}` })
   }
 
   // Otherwise, go through and mark all the matched habits as complete
@@ -76,14 +76,14 @@ async function markHabitOnTaskCompletion(completedTaskInfo, res) {
   }))
 
   logger.info(`Successfully marked habits with IDs ${habitIdsToMarkComplete.join(', ')} complete for: ${title}`)
-  res.status(200).json({ message: `Successfully added done task for habit with name: ${title}` });
+  res.status(200).json({ message: `Successfully added done task for habit with name: ${title}` })
 }
 
 async function assignGoalToTask(completedTaskInfo, res) {
   const { title, _id: taskId } = completedTaskInfo
 
   // List all the goals
-  const { data: goalInfos } = await axios.get(MarvinEndpoint.LIST_GOALS);
+  const { data: goalInfos } = await axios.get(MarvinEndpoint.LIST_GOALS)
 
   // Build a mapping of goal IDs and to which words to map to
   const goalIdToPatternsMapping = buildHabitToPatternsMapping(goalInfos)
@@ -99,7 +99,7 @@ async function assignGoalToTask(completedTaskInfo, res) {
   // No goal to attach to, skipping
   if (goalIdToAttach === null) {
     logger.info(`No related goals to mark done for task: ${title}`)
-    return res.status(200).json({ message: `No related goals to mark done for task: ${title}` });
+    return res.status(200).json({ message: `No related goals to mark done for task: ${title}` })
   }
 
   // Update task with goal
@@ -116,7 +116,7 @@ async function assignGoalToTask(completedTaskInfo, res) {
   await axios.post(MarvinEndpoint.UPDATE_DOC, updateTaskData)
 
   logger.info(`Assigned goal ${goalIdToAttach} to task with name: ${title}`)
-  res.status(200).json({ message: `Assigned goal ${goalIdToAttach} to habit with name: ${title}` });
+  res.status(200).json({ message: `Assigned goal ${goalIdToAttach} to habit with name: ${title}` })
 }
 
 function buildHabitToPatternsMapping(habitInfos) {
@@ -139,4 +139,4 @@ function getRecordHabitData(habitId) {
   }
 }
 
-export default router;
+export default router
