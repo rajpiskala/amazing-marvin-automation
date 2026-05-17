@@ -29,6 +29,11 @@ function buildApp () {
   return app
 }
 
+afterEach(() => {
+  jest.restoreAllMocks()
+  jest.clearAllMocks()
+})
+
 describe('Marvin Zod schemas', () => {
   test('accepts record habit webhooks with Marvin-owned extra fields', () => {
     const result = recordHabitWebhookSchema.safeParse({
@@ -57,6 +62,15 @@ describe('Marvin Zod schemas', () => {
   test('requires task webhook id and title', () => {
     expect(taskWebhookSchema.safeParse({ _id: 'task-1', title: 'Run' }).success).toBe(true)
     expect(taskWebhookSchema.safeParse({ title: 'Run' }).success).toBe(false)
+  })
+
+  test('preserves Marvin title whitespace instead of normalizing upstream data', () => {
+    const result = taskWebhookSchema.safeParse({ _id: 'task-1', title: '  Run  ' })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.title).toBe('  Run  ')
+    }
   })
 
   test('validates habit and goal list responses', () => {
@@ -89,6 +103,19 @@ describe('Marvin Zod schemas', () => {
         { key: 'updatedAt', val: 1700000000000 }
       ]
     }).success).toBe(true)
+  })
+
+  test('rejects document update payloads with mismatched goal setter IDs', () => {
+    const result = updateDocPayloadSchema.safeParse({
+      itemId: 'task-1',
+      setters: [
+        { key: 'g_in_goal-1', val: true },
+        { key: 'fieldUpdates.g_in_goal-2', val: 1700000000000 },
+        { key: 'updatedAt', val: 1700000000000 }
+      ]
+    })
+
+    expect(result.success).toBe(false)
   })
 
   test('rejects extra fields on outbound payloads', () => {
@@ -183,8 +210,6 @@ describe('habit-as-task validation', () => {
       value: 1,
       updateDB: true
     })
-
-    Date.now.mockRestore()
   })
 
   test('attaches a matching goal for a valid add task webhook', async () => {
@@ -205,7 +230,5 @@ describe('habit-as-task validation', () => {
         { key: 'updatedAt', val: 1700000000000 }
       ]
     })
-
-    Date.now.mockRestore()
   })
 })

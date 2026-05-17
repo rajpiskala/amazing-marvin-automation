@@ -8,4 +8,4 @@ export const MarvinEndpoint = {
   LIST_HABITS_FULL: `${API_BASE_URL}/habits?raw=1`,
   LIST_GOALS: `${API_BASE_URL}/goals`,
   UPDATE_DOC: `${API_BASE_URL}/doc/update`,
-}
+} as const

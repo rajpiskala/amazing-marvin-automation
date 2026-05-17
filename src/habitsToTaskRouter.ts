@@ -199,7 +199,9 @@ class BoundaryValidationError extends Error {
 }
 
 function sendValidationError (res: Response, status: number, message: string, error: ZodError) {
-  return res.status(status).json({ error: message, issues: formatZodIssues(error.issues) })
+  const issues = formatZodIssues(error.issues)
+  logger.warn(message, { issues })
+  return res.status(status).json({ error: message, issues })
 }
 
 function parseMarvinApiResponse<T> (schema: ZodType<T>, data: unknown, message: string): T {
