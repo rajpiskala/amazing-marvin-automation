@@ -33,6 +33,7 @@ npm install
 - Rename the file named `.env.template` to `.env`
 - Get your API key: go to Amazing Marvin on web/desktop > Strategies (press S) > API (beta) > Settings > View credentials > Copy paste the value under "API token"
 - Paste this value onto the empty spot where it says `MARVIN_API_TOKEN`
+- Optional: paste the value under "Full access token" into `MARVIN_FULL_ACCESS_TOKEN` if you need direct document reads/updates through Marvin's `/api/doc` endpoints
 
 (4) Set up Amazing Marvin webhooks
 - Go to API settings in Amazing Marvin (see instructions in #3)
@@ -67,6 +68,8 @@ If you run into any issues, need help, or have any feature suggestions for this 
 
   - Allows users to customize the task created after recording a habit.
   - Example: Recording the habit "Brush teeth in the morning" creates a task "Brush teeth #Self-Care ~10m +Today".
+  - To stop a specific habit from creating completed tasks, add `$skipHabitTaskCreation` anywhere in that habit's note in Marvin.
+  - This is useful when a habit has a category for Marvin organization, but should not generate a task when recorded.
 </details>
 
 <details>
