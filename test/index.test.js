@@ -51,6 +51,7 @@ describe('habit-as-task validation', () => {
       .send({
         _id: 'habit-1',
         title: 'Drink water',
+        note: '',
         parentId: 'project-1',
         timeEstimate: 300000,
         record: { time: recordTime, value: 1 },
@@ -82,6 +83,43 @@ describe('habit-as-task validation', () => {
     expect(axios.post).not.toHaveBeenCalled()
   })
 
+  test('skips creating a task when the webhook note has the skip directive', async () => {
+    const response = await request(buildApp())
+      .post('/habit-as-task?type=record-habit')
+      .send({
+        _id: 'habit-1',
+        title: 'Log Calories',
+        note: '$skipHabitTaskCreation',
+        parentId: 'project-1',
+        record: { time: new Date(2024, 0, 2).getTime(), value: 1 }
+      })
+
+    expect(response.status).toBe(200)
+    expect(response.body.message).toBe('Skipping creating a task for habit with skip directive: Log Calories')
+    expect(axios.get).not.toHaveBeenCalled()
+    expect(axios.post).not.toHaveBeenCalled()
+  })
+
+  test('skips creating a task when the fetched habit note has the skip directive', async () => {
+    axios.get.mockResolvedValueOnce({
+      data: [{ _id: 'habit-1', note: 'calorie keywords, $skipHabitTaskCreation' }]
+    })
+
+    const response = await request(buildApp())
+      .post('/habit-as-task?type=record-habit')
+      .send({
+        _id: 'habit-1',
+        title: 'Log Calories',
+        parentId: 'project-1',
+        record: { time: new Date(2024, 0, 2).getTime(), value: 1 }
+      })
+
+    expect(response.status).toBe(200)
+    expect(response.body.message).toBe('Skipping creating a task for habit with skip directive: Log Calories')
+    expect(axios.get).toHaveBeenCalledWith(MarvinEndpoint.LIST_HABITS_FULL)
+    expect(axios.post).not.toHaveBeenCalled()
+  })
+
   test('preserves Marvin title whitespace instead of normalizing webhook data', async () => {
     axios.post.mockResolvedValueOnce({})
 
@@ -90,6 +128,7 @@ describe('habit-as-task validation', () => {
       .send({
         _id: 'habit-1',
         title: '  Drink water  ',
+        note: '',
         parentId: 'project-1',
         record: { time: new Date(2024, 0, 2).getTime(), value: 1 }
       })

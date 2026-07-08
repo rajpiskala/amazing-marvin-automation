@@ -8,6 +8,7 @@ export interface HabitRecord {
 export interface RecordHabitWebhook {
   _id: string
   title: string
+  note?: string | null
   parentId: string
   timeEstimate?: number
   record: HabitRecord
