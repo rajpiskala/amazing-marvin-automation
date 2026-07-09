@@ -61,11 +61,13 @@ describe('habit-as-task validation', () => {
     expect(response.status).toBe(200)
     expect(axios.post).toHaveBeenCalledWith(MarvinEndpoint.ADD_TASK, expect.objectContaining({
       done: true,
+      doneAt: recordTime,
       day: '2024-01-02',
       title: 'Drink water',
       parentId: 'project-1',
       timeEstimate: 300000
     }))
+    expect(axios.get).not.toHaveBeenCalled()
   })
 
   test('skips creating a task for unassigned habits', async () => {
@@ -100,10 +102,8 @@ describe('habit-as-task validation', () => {
     expect(axios.post).not.toHaveBeenCalled()
   })
 
-  test('skips creating a task when the fetched habit note has the skip directive', async () => {
-    axios.get.mockResolvedValueOnce({
-      data: [{ _id: 'habit-1', note: 'calorie keywords, $skipHabitTaskCreation' }]
-    })
+  test('does not fetch habits before creating a task when webhook note is omitted', async () => {
+    axios.post.mockResolvedValueOnce({})
 
     const response = await request(buildApp())
       .post('/habit-as-task?type=record-habit')
@@ -115,9 +115,12 @@ describe('habit-as-task validation', () => {
       })
 
     expect(response.status).toBe(200)
-    expect(response.body.message).toBe('Skipping creating a task for habit with skip directive: Log Calories')
-    expect(axios.get).toHaveBeenCalledWith(MarvinEndpoint.LIST_HABITS_FULL)
-    expect(axios.post).not.toHaveBeenCalled()
+    expect(axios.get).not.toHaveBeenCalled()
+    expect(axios.post).toHaveBeenCalledWith(MarvinEndpoint.ADD_TASK, expect.objectContaining({
+      done: true,
+      doneAt: new Date(2024, 0, 2).getTime(),
+      title: 'Log Calories'
+    }))
   })
 
   test('preserves Marvin title whitespace instead of normalizing webhook data', async () => {
