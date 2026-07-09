@@ -26,6 +26,7 @@ export interface NoteKeywordSource {
 
 export interface CreateTaskPayload {
   done: true
+  doneAt: number
   day: string
   title: string
   parentId: string

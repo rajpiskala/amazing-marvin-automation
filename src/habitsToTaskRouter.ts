@@ -58,6 +58,7 @@ async function addTaskOnHabitCompletion(recordedHabitInfo: RecordHabitWebhook, r
 
   const createTaskData: CreateTaskPayload = {
     done: true,
+    doneAt: record.time,
     day: recordedDate,
     timeEstimate,
     title,
