@@ -48,7 +48,7 @@ async function addTaskOnHabitCompletion(recordedHabitInfo: RecordHabitWebhook, r
   if (parentId === UNASSIGNED_PARENT_ID) {
     return res.status(200).json({ message: `Skipping creating a task for habit with name: ${title}` })
   }
-  if (await shouldSkipHabitTaskCreation(recordedHabitInfo)) {
+  if (hasSkipHabitTaskCreationDirective(recordedHabitInfo.note)) {
     return res.status(200).json({ message: `Skipping creating a task for habit with skip directive: ${title}` })
   }
 
@@ -58,6 +58,7 @@ async function addTaskOnHabitCompletion(recordedHabitInfo: RecordHabitWebhook, r
 
   const createTaskData: CreateTaskPayload = {
     done: true,
+    doneAt: record.time,
     day: recordedDate,
     timeEstimate,
     title,
@@ -157,16 +158,6 @@ function buildNoteKeywordMap(sources: NoteKeywordSource[]): Record<string, strin
   return noteKeywordMap
 }
 
-async function shouldSkipHabitTaskCreation(recordedHabitInfo: RecordHabitWebhook): Promise<boolean> {
-  const note = recordedHabitInfo.note ?? await getHabitNote(recordedHabitInfo._id)
-  return hasSkipHabitTaskCreationDirective(note)
-}
-
-async function getHabitNote(habitId: string): Promise<string | null | undefined> {
-  const { data: habitInfos } = await axios.get<NoteKeywordSource[]>(MarvinEndpoint.LIST_HABITS_FULL)
-  return habitInfos.find(habitInfo => habitInfo._id === habitId)?.note
-}
-
 function hasSkipHabitTaskCreationDirective(note: string | null | undefined): boolean {
   return (note ?? '').toLowerCase().includes(SKIP_HABIT_TASK_CREATION_DIRECTIVE.toLowerCase())
 }
@@ -187,6 +178,5 @@ export {
   buildNoteKeywordMap,
   getRecordHabitData,
   hasSkipHabitTaskCreationDirective,
-  markHabitOnTaskCompletion,
-  shouldSkipHabitTaskCreation
+  markHabitOnTaskCompletion
 }
