@@ -32,10 +32,11 @@ function getUserLogFormat() {
   return winston.format.printf(info => {
     const now = new Date()
 
-    // Format the date in YYYY-MM-DD
-    const date = now.toISOString().split('T')[0]
-
-    // Format the time in locale-specific time string
+    // Format the local date in YYYY-MM-DD.
+    const year = now.getFullYear()
+    const month = String(now.getMonth() + 1).padStart(2, '0')
+    const day = String(now.getDate()).padStart(2, '0')
+    const date = `${year}-${month}-${day}`
     const time = now.toLocaleTimeString()
 
     // Get the timezone offset in the format UTC±HHMM
