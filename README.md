@@ -34,6 +34,10 @@ npm install
 - Get your API key: go to Amazing Marvin on web/desktop > Strategies (press S) > API (beta) > Settings > View credentials > Copy paste the value under "API token"
 - Paste this value onto the empty spot where it says `MARVIN_API_TOKEN`
 - Optional: paste the value under "Full access token" into `MARVIN_FULL_ACCESS_TOKEN` if you need direct document reads/updates through Marvin's `/api/doc` endpoints
+- Optional: to enable Lose It! checks, add `LOSEIT_COOKIE` with the Cookie header from a logged-in `www.loseit.com` request. The automation calls `https://www.loseit.com/export/data` and parses the exported CSV files; it does not run a browser.
+  - `LOSEIT_TIME_ZONE` defaults to `America/Los_Angeles`.
+  - `LOSEIT_PRODUCE_THRESHOLD_GRAMS` defaults to `200`.
+  - `LOSEIT_PRODUCE_REGEX` can override the default fruit/vegetable name matcher.
 
 (4) Set up Amazing Marvin webhooks
 - Go to API settings in Amazing Marvin (see instructions in #3)
@@ -47,6 +51,15 @@ To run the program, open a terminal and do:
 npm run start
 ```
 The program will run on port 8080 as specified under `constants.js`
+
+### Lose It! day summary
+
+After setting `LOSEIT_COOKIE`, query:
+```bash
+curl "http://localhost:8080/loseit/day-summary?date=2026-07-16"
+```
+
+The response includes `caloriesLogged`, `foodCalories`, `produceGrams`, and `produceOverThreshold`. Produce grams are summed from non-deleted food rows whose names match the fruit/vegetable regex and whose serving units can be converted to grams.
 
 ## Issues & Help
 

@@ -3,6 +3,7 @@ import axios from 'axios'
 import dotenv from 'dotenv'
 import cors from 'cors'
 import habitTaskRouter from './habitsToTaskRouter'
+import loseItRouter from './loseItRouter'
 
 dotenv.config()
 
@@ -29,6 +30,7 @@ app.get('/', (_, res) => {
 
 // Routers
 app.use(habitTaskRouter)
+app.use(loseItRouter)
 
 app.listen(process.env.PORT, () => {
   console.log(`Server is running on port ${process.env.PORT}`)

@@ -1,5 +1,6 @@
 const express = require('express')
 const request = require('supertest')
+const { deflateRawSync } = require('zlib')
 
 jest.mock('axios', () => ({
   __esModule: true,
@@ -14,6 +15,7 @@ const habitTaskRouterModule = require('../src/habitsToTaskRouter')
 const habitTaskRouter = habitTaskRouterModule.default
 const { buildNoteKeywordMap } = habitTaskRouterModule
 const { MarvinEndpoint, UNASSIGNED_PARENT_ID } = require('../lib/constants')
+const { convertToGrams, getLoseItDaySummary, parseCsv } = require('../lib/loseItExport')
 
 function buildApp() {
   const app = express()
@@ -230,3 +232,86 @@ describe('note keyword matching', () => {
     })
   })
 })
+
+describe('LoseIt export parsing', () => {
+  const originalLoseItCookie = process.env.LOSEIT_COOKIE
+
+  afterEach(() => {
+    process.env.LOSEIT_COOKIE = originalLoseItCookie
+  })
+
+  test('parses quoted CSV fields', () => {
+    expect(parseCsv('Date,Name,Calories\n07/15/2026,"Cappuccino, 8 oz",73\n')).toEqual([
+      { Date: '07/15/2026', Name: 'Cappuccino, 8 oz', Calories: '73' }
+    ])
+  })
+
+  test('converts supported serving units to grams', () => {
+    expect(convertToGrams(200, 'Grams')).toBe(200)
+    expect(convertToGrams(2, 'Ounces')).toBeCloseTo(56.699)
+    expect(convertToGrams(1, 'Each')).toBeNull()
+  })
+
+  test('summarizes calories and produce grams from the LoseIt export ZIP', async () => {
+    process.env.LOSEIT_COOKIE = 'liauth=fake'
+    axios.get.mockResolvedValueOnce({
+      data: buildZip({
+        'daily-calorie-summary.csv': [
+          'Date,Food cals,Exercise cals,Budget cals,EER',
+          '07/15/2026,3289.0,0.0,2475.0,2384.79',
+        ].join('\n'),
+        'food-logs.csv': [
+          'Date,Name,Icon,Meal,Quantity,Units,Calories,Deleted',
+          '07/15/2026,Strawberry,Fruit,Breakfast,200.0,Grams,67,0',
+          '07/15/2026,"Spinach, Cooked",Spinach,Lunch,100.0,Grams,23,0',
+          '07/15/2026,"Rice, White, Cooked",Rice,Lunch,350.0,Grams,455,0',
+          '07/15/2026,Strawberry,Fruit,Snacks,100.0,Grams,34,1',
+        ].join('\n'),
+      })
+    })
+
+    const summary = await getLoseItDaySummary('2026-07-15')
+
+    expect(summary.caloriesLogged).toBe(true)
+    expect(summary.foodCalories).toBe(3289)
+    expect(summary.produceGrams).toBe(300)
+    expect(summary.produceOverThreshold).toBe(true)
+    expect(summary.foodEntries).toHaveLength(3)
+    expect(summary.produceEntries.map(entry => entry.name)).toEqual(['Strawberry', 'Spinach, Cooked'])
+  })
+})
+
+function buildZip(files) {
+  const localParts = []
+  const centralParts = []
+  let localOffset = 0
+
+  Object.entries(files).forEach(([name, content]) => {
+    const nameBuffer = Buffer.from(name)
+    const compressed = deflateRawSync(Buffer.from(content))
+    const localHeader = Buffer.alloc(30)
+    localHeader.writeUInt32LE(0x04034b50, 0)
+    localHeader.writeUInt16LE(20, 4)
+    localHeader.writeUInt16LE(8, 8)
+    localHeader.writeUInt32LE(compressed.length, 18)
+    localHeader.writeUInt32LE(Buffer.byteLength(content), 22)
+    localHeader.writeUInt16LE(nameBuffer.length, 26)
+
+    localParts.push(localHeader, nameBuffer, compressed)
+
+    const centralHeader = Buffer.alloc(46)
+    centralHeader.writeUInt32LE(0x02014b50, 0)
+    centralHeader.writeUInt16LE(20, 4)
+    centralHeader.writeUInt16LE(20, 6)
+    centralHeader.writeUInt16LE(8, 10)
+    centralHeader.writeUInt32LE(compressed.length, 20)
+    centralHeader.writeUInt32LE(Buffer.byteLength(content), 24)
+    centralHeader.writeUInt16LE(nameBuffer.length, 28)
+    centralHeader.writeUInt32LE(localOffset, 42)
+    centralParts.push(centralHeader, nameBuffer)
+
+    localOffset += localHeader.length + nameBuffer.length + compressed.length
+  })
+
+  return Buffer.concat([...localParts, ...centralParts])
+}
