@@ -30,6 +30,9 @@ app.get('/', (_, res) => {
 // Routers
 app.use(habitTaskRouter)
 
-app.listen(process.env.PORT, () => {
-  console.log(`Server is running on port ${process.env.PORT}`)
+const port = Number(process.env.PORT || 3011)
+const host = process.env.HOST || '127.0.0.1'
+
+app.listen(port, host, () => {
+  console.log(`Server is running on ${host}:${port}`)
 })
